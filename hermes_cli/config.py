@@ -3046,6 +3046,25 @@ OPTIONAL_ENV_VARS = {
         "password": True,
         "category": "tool",
     },
+    # ── GitHub Enterprise Copilot ──
+    "COPILOT_API_BASE_URL": {
+        "description": "Copilot API base URL (for GitHub Enterprise)",
+        "prompt": "Copilot API base URL (leave empty for github.com)",
+        "category": "provider",
+        "advanced": True,
+    },
+    "COPILOT_GH_HOST": {
+        "description": "GitHub hostname for gh CLI token lookup (e.g. your-ghe.com)",
+        "prompt": "GitHub Enterprise hostname (leave empty for github.com)",
+        "category": "provider",
+        "advanced": True,
+    },
+    "COPILOT_AUTH_MODE": {
+        "description": "Set to 'oauth' to force OAuth device-code flow, skipping env vars and gh CLI",
+        "prompt": "Copilot auth mode (leave empty for default)",
+        "category": "provider",
+        "advanced": True,
+    },
 
     # ── Bundled skills (opt-in: only needed if the user uses that skill) ──
     # These use category="skill" (distinct from "tool") so the sandbox

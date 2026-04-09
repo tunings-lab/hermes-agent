@@ -29,8 +29,21 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# OAuth device code flow constants (same client ID as opencode/Copilot CLI)
-COPILOT_OAUTH_CLIENT_ID = "Ov23li8tweQw6odWQebz"
+# OAuth/API endpoints (override for GitHub Enterprise Copilot; defaults preserve github.com)
+COPILOT_OAUTH_CLIENT_ID = os.getenv("COPILOT_OAUTH_CLIENT_ID", "Ov23li8tweQw6odWQebz")
+COPILOT_DEVICE_CODE_URL = os.getenv("COPILOT_DEVICE_CODE_URL", "https://github.com/login/device/code")
+COPILOT_ACCESS_TOKEN_URL = os.getenv("COPILOT_ACCESS_TOKEN_URL", "https://github.com/login/oauth/access_token")
+COPILOT_TOKEN_EXCHANGE_URL = os.getenv("COPILOT_TOKEN_EXCHANGE_URL", "https://api.github.com/copilot_internal/v2/token")
+COPILOT_API_BASE_URL = os.getenv("COPILOT_API_BASE_URL", "https://api.githubcopilot.com")
+
+
+def is_copilot_url(url: str) -> bool:
+    """Return True if *url* targets a Copilot-compatible endpoint."""
+    lower = (url or "").lower().rstrip("/")
+    configured = (COPILOT_API_BASE_URL or "").lower().rstrip("/")
+    return "api.githubcopilot.com" in lower or (configured and configured in lower)
+
+
 # Token type prefixes
 _CLASSIC_PAT_PREFIX = "ghp_"
 _SUPPORTED_PREFIXES = ("gho_", "github_pat_", "ghu_")
@@ -69,7 +82,17 @@ def resolve_copilot_token() -> tuple[str, str]:
 
     Returns (token, source) where source describes where the token came from.
     Raises ValueError if only a classic PAT is available.
+
+    Respects ``COPILOT_AUTH_MODE``:
+      - ``oauth``  — skip env vars and ``gh auth token``; return empty so caller
+                     falls through to OAuth device-code flow.
+      - (unset)    — default behaviour: env vars → ``gh auth token``.
     """
+    auth_mode = os.getenv("COPILOT_AUTH_MODE", "").strip().lower()
+    if auth_mode == "oauth":
+        logger.debug("COPILOT_AUTH_MODE=oauth — skipping env vars and gh CLI")
+        return "", ""
+
     # 1. Check env vars in priority order
     for env_var in COPILOT_ENV_VARS:
         val = os.getenv(env_var, "").strip()
@@ -167,9 +190,10 @@ def copilot_device_code_login(
     import urllib.request
     import urllib.parse
 
-    domain = host.rstrip("/")
-    device_code_url = f"https://{domain}/login/device/code"
-    access_token_url = f"https://{domain}/login/oauth/access_token"
+    # For GHE, these can be overridden via COPILOT_DEVICE_CODE_URL /
+    # COPILOT_ACCESS_TOKEN_URL. The host arg remains for backwards-compat.
+    device_code_url = COPILOT_DEVICE_CODE_URL
+    access_token_url = COPILOT_ACCESS_TOKEN_URL
 
     # Step 1: Request device code
     data = urllib.parse.urlencode({
@@ -283,7 +307,7 @@ _jwt_cache: dict[str, tuple[str, float]] = {}
 _JWT_REFRESH_MARGIN_SECONDS = 120  # refresh 2 min before expiry
 
 # Token exchange endpoint and headers (matching VS Code / Copilot CLI)
-_TOKEN_EXCHANGE_URL = "https://api.github.com/copilot_internal/v2/token"
+_TOKEN_EXCHANGE_URL = COPILOT_TOKEN_EXCHANGE_URL
 _EDITOR_VERSION = "vscode/1.104.1"
 _EXCHANGE_USER_AGENT = "GitHubCopilotChat/0.26.7"
 
