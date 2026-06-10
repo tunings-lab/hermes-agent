@@ -8,6 +8,7 @@ Add, remove, or reorder entries here — both `hermes setup` and
 from __future__ import annotations
 
 import json
+import logging
 import os
 import urllib.request
 import urllib.error
@@ -22,7 +23,9 @@ from hermes_cli import __version__ as _HERMES_VERSION
 # Check (error 1010) don't reject the default ``Python-urllib/*`` signature.
 _HERMES_USER_AGENT = f"hermes-cli/{_HERMES_VERSION}"
 
-COPILOT_BASE_URL = "https://api.githubcopilot.com"
+logger = logging.getLogger(__name__)
+
+COPILOT_BASE_URL = os.getenv("COPILOT_API_BASE_URL", "https://api.githubcopilot.com")
 COPILOT_MODELS_URL = f"{COPILOT_BASE_URL}/models"
 COPILOT_EDITOR_VERSION = "vscode/1.104.1"
 COPILOT_REASONING_EFFORTS_GPT5 = ["minimal", "low", "medium", "high"]
@@ -2672,6 +2675,7 @@ def fetch_github_model_catalog(
     attempts.append(copilot_default_headers())
 
     for headers in attempts:
+        logger.debug("Fetching Copilot model catalog from %s", COPILOT_MODELS_URL)
         req = urllib.request.Request(COPILOT_MODELS_URL, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -2689,7 +2693,8 @@ def fetch_github_model_catalog(
                     models.append(item)
                 if models:
                     return models
-        except Exception:
+        except Exception as exc:
+            logger.debug("Copilot model catalog fetch failed (%s): %s", COPILOT_MODELS_URL, exc)
             continue
     return None
 

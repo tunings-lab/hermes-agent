@@ -1065,14 +1065,15 @@ class AIAgent:
         return "openai.azure.com" in url
 
     def _is_github_copilot_url(self, base_url: str = None) -> bool:
-        """Return True when a base URL targets GitHub Copilot's OpenAI-compatible API."""
-        if base_url is not None:
-            hostname = base_url_hostname(base_url)
-        else:
-            hostname = getattr(self, "_base_url_hostname", "") or base_url_hostname(
-                getattr(self, "_base_url_lower", "")
-            )
-        return hostname == "api.githubcopilot.com"
+        """Return True when base URL targets GitHub Copilot (public or enterprise)."""
+        candidate = base_url if base_url is not None else getattr(self, "_base_url_lower", "")
+        try:
+            from hermes_cli.copilot_auth import is_copilot_url
+
+            return is_copilot_url(candidate or "")
+        except Exception:
+            hostname = base_url_hostname(candidate or "")
+            return hostname == "api.githubcopilot.com"
 
     def _resolved_api_call_timeout(self) -> float:
         """Resolve the effective per-call request timeout in seconds.
@@ -3532,7 +3533,7 @@ class AIAgent:
         # unaffected (they don't go through here).
         request_kwargs["max_retries"] = 0
         if (
-            base_url_host_matches(str(request_kwargs.get("base_url", "")), "api.githubcopilot.com")
+            self._is_github_copilot_url(str(request_kwargs.get("base_url", "")))
             and self._api_kwargs_have_image_parts(api_kwargs or {})
         ):
             request_kwargs["default_headers"] = self._copilot_headers_for_request(is_vision=True)
@@ -3794,7 +3795,7 @@ class AIAgent:
             self._client_kwargs["default_headers"] = build_nvidia_nim_headers(base_url)
         elif base_url_host_matches(base_url, "api.routermint.com"):
             self._client_kwargs["default_headers"] = _routermint_headers()
-        elif base_url_host_matches(base_url, "api.githubcopilot.com"):
+        elif self._is_github_copilot_url(base_url):
             from hermes_cli.models import copilot_default_headers
 
             self._client_kwargs["default_headers"] = copilot_default_headers()
@@ -4671,7 +4672,7 @@ class AIAgent:
             return True
         if (
             base_url_host_matches(self._base_url_lower, "models.github.ai")
-            or base_url_host_matches(self._base_url_lower, "api.githubcopilot.com")
+            or self._is_github_copilot_url(self._base_url_lower)
         ):
             try:
                 from hermes_cli.models import github_model_reasoning_efforts
